@@ -1,8 +1,8 @@
 # backend
 
 Go service: the console API and the load generator. One program, built into
-one container image (`backend/Dockerfile`). The React page is added to the
-same program in Phase 3.
+one container image (`backend/Dockerfile`), with the React page from
+`frontend/` packed inside it.
 
 ## Where things are
 
@@ -15,6 +15,7 @@ same program in Phase 3.
 | `warnings/` | The five rules behind the warning banner |
 | `record/` | The event log and per-second stats, and their CSV files |
 | `catalog/` | What may be deployed, and the templates it is deployed from |
+| `web/` | Serves the React page. `web/dist/` holds a placeholder here; the image build replaces it with the real page |
 | `cmd/render-workload/` | Prints the YAML Deploy would create (`make render`) |
 
 Every Go file has plain-English comments. Start with `cmd/console/main.go`.

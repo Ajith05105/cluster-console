@@ -380,6 +380,15 @@ func (c *Cluster) kubernetesEvent(event *corev1.Event) {
 	if event.Type != corev1.EventTypeWarning || routineWarnings[event.Reason] {
 		return
 	}
+	// A pod that has been told to stop deliberately fails its readiness
+	// check while it shuts down (camera-ingest answers "not ready" so that
+	// traffic is steered away first). Kubernetes reports that as an
+	// "Unhealthy" warning, which looks alarming but is the plan working.
+	// Drop it for pods that are shutting down or already gone; an Unhealthy
+	// warning for a pod that should be running is still passed on.
+	if event.Reason == "Unhealthy" && event.InvolvedObject.Kind == "Pod" && c.podIsGoingAway(event.InvolvedObject.Name) {
+		return
+	}
 	c.mu.Lock()
 	seen := c.reportedEvents[string(event.UID)]
 	if !seen {
@@ -393,6 +402,13 @@ func (c *Cluster) kubernetesEvent(event *corev1.Event) {
 	if !seen {
 		c.Emit("cluster", fmt.Sprintf("Kubernetes warning: %s on %s: %s", event.Reason, event.InvolvedObject.Name, event.Message))
 	}
+}
+
+// podIsGoingAway reports whether a pod in the workload namespace has been
+// told to stop, or has already gone.
+func (c *Cluster) podIsGoingAway(name string) bool {
+	pod, err := c.podLister.Pods(c.namespace).Get(name)
+	return err != nil || pod.DeletionTimestamp != nil
 }
 
 // wanted is the number of pods a Deployment asks for.

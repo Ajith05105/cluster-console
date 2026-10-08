@@ -456,3 +456,43 @@ func TestChangesAreReported(t *testing.T) {
 		break
 	}
 }
+
+// A readiness-probe warning is dropped for a pod that is shutting down or
+// already gone, and passed on for a pod that should be running.
+func TestReadinessWarningsForStoppingPodsAreDropped(t *testing.T) {
+	stopping := metav1.NewTime(time.Now())
+	cl, client := clustertest.New(t,
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "healthy-pod", Namespace: "workload"}},
+		&corev1.Pod{ObjectMeta: metav1.ObjectMeta{Name: "stopping-pod", Namespace: "workload", DeletionTimestamp: &stopping,
+			Finalizers: []string{"test/keep-until-checked"}}},
+	)
+	lines := make(chan string, 20)
+	cl.Emit = func(kind, message string) { lines <- message }
+
+	unhealthy := func(pod string) *corev1.Event {
+		return &corev1.Event{ObjectMeta: metav1.ObjectMeta{Name: "unhealthy-" + pod, Namespace: "workload", UID: types.UID("uid-" + pod)},
+			Type: corev1.EventTypeWarning, Reason: "Unhealthy", Message: "Readiness probe failed: HTTP probe failed with statuscode: 503",
+			InvolvedObject: corev1.ObjectReference{Kind: "Pod", Name: pod}}
+	}
+	events := client.CoreV1().Events("workload")
+	_, _ = events.Create(ctx, unhealthy("stopping-pod"), metav1.CreateOptions{})
+	_, _ = events.Create(ctx, unhealthy("already-gone-pod"), metav1.CreateOptions{})
+	_, _ = events.Create(ctx, unhealthy("healthy-pod"), metav1.CreateOptions{})
+
+	// Collect what arrives for a moment, then check.
+	var got []string
+	timeout := time.After(time.Second)
+collect:
+	for {
+		select {
+		case line := <-lines:
+			got = append(got, line)
+		case <-timeout:
+			break collect
+		}
+	}
+	want := "Kubernetes warning: Unhealthy on healthy-pod: Readiness probe failed: HTTP probe failed with statuscode: 503"
+	if len(got) != 1 || got[0] != want {
+		t.Errorf("event-log lines = %q\nwant only  %q", got, want)
+	}
+}

@@ -65,7 +65,7 @@ func newTestConsole(t *testing.T, config Config, objects ...runtime.Object) *tes
 	server := New(config, cat, cl, load, events, stats)
 	cl.OnChange = server.ClusterChanged
 	cl.Emit = func(kind, message string) { events.Add(kind, message) }
-	return &testConsole{server: server, handler: server.Handler(), client: client, events: events}
+	return &testConsole{server: server, handler: server.Handler(nil), client: client, events: events}
 }
 
 // reply is a decoded JSON answer from the API.
@@ -439,5 +439,32 @@ func TestStream(t *testing.T) {
 	c.server.tick(time.Now())
 	if message := next(); message.name != "stats" || !strings.Contains(message.data, `"sent"`) {
 		t.Errorf("after a tick, got %q %s; want a stats message", message.name, message.data)
+	}
+}
+
+// An address under /api/ that does not exist gets a JSON error, also when a
+// page is being served for everything else.
+func TestUnknownAPIAddress(t *testing.T) {
+	c := newTestConsole(t, Config{Token: testToken})
+	page := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { _, _ = w.Write([]byte("the page")) })
+	handler := c.server.Handler(page)
+
+	ask := func(method, target string) (int, string) {
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, httptest.NewRequest(method, target, nil))
+		return response.Code, response.Body.String()
+	}
+	if status, body := ask(http.MethodGet, "/api/no-such-thing"); status != http.StatusNotFound || !strings.Contains(body, `"ok":false`) {
+		t.Errorf("GET /api/no-such-thing: status %d, body %q; want a 404 JSON error", status, body)
+	}
+	// A GET to a POST-only address must not fall through to the page either.
+	if status, body := ask(http.MethodGet, "/api/deploy"); status == http.StatusOK || body == "the page" {
+		t.Errorf("GET /api/deploy: status %d, body %q; want an error", status, body)
+	}
+	if status, body := ask(http.MethodGet, "/"); status != http.StatusOK || body != "the page" {
+		t.Errorf("GET /: status %d, body %q; want the page", status, body)
+	}
+	if status, body := ask(http.MethodGet, "/api/state"); status != http.StatusOK || !strings.Contains(body, `"cluster"`) {
+		t.Errorf("GET /api/state: status %d; want the snapshot", status)
 	}
 }

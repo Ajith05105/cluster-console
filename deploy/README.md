@@ -58,6 +58,10 @@ it so it picks the token up:
 sudo k3s kubectl -n console rollout restart deployment/console
 ```
 
+Type the token into the box at the top right of the console page
+(`http://console.cluster.local`, which the laptop must be able to resolve to
+Traefik's address, the same way it resolves `gitea.cluster.local`).
+
 Without the Secret the console still starts and shows the cluster, but
 refuses every POST. Setting `READ_ONLY` to `"true"` in
 `manifests/console.yaml` refuses every POST even with the token.

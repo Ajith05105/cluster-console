@@ -8,6 +8,7 @@
 //	warnings  the rules behind the warning banner
 //	record    the event log and the per-second stats, and their CSV files
 //	api       the web API and live stream the React page talks to
+//	web       the React page itself, packed inside this program
 package main
 
 import (
@@ -33,6 +34,7 @@ import (
 	"cluster-console/backend/cluster"
 	"cluster-console/backend/loadgen"
 	"cluster-console/backend/record"
+	"cluster-console/backend/web"
 	"cluster-console/internal/scene"
 )
 
@@ -126,7 +128,7 @@ func main() {
 
 	httpServer := &http.Server{
 		Addr:              listen,
-		Handler:           server.Handler(),
+		Handler:           server.Handler(web.Handler()), // the API plus the React page
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		// No write timeout: the live stream stays open for as long as the

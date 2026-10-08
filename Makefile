@@ -3,6 +3,8 @@
 #
 #   make test                  run the Go checks and tests
 #   make render KEY=<key>      print the YAML the Deploy button would create
+#   make test-page             run the React page's tests (needs Node on the laptop)
+#   make dev-page              run the page on the laptop against the live console
 #   make fmt                   put the Go files into standard layout
 #   make image-camera-ingest   build the camera-ingest image for arm64 + amd64
 #   make push-camera-ingest    push that image to the Gitea registry
@@ -20,7 +22,7 @@ REGISTRY ?= gitea.cluster.local
 CAMERA_INGEST_VERSION ?= 0.1.0
 
 # Must match the image tag in deploy/manifests/console.yaml.
-CONSOLE_VERSION ?= 0.2.1
+CONSOLE_VERSION ?= 0.3.0
 
 CAMERA_INGEST_LOCAL := localhost/camera-ingest:$(CAMERA_INGEST_VERSION)
 CONSOLE_LOCAL       := localhost/cluster-console:$(CONSOLE_VERSION)
@@ -28,7 +30,18 @@ CONSOLE_LOCAL       := localhost/cluster-console:$(CONSOLE_VERSION)
 CAMERA_INGEST_OCI   := $(CURDIR)/.build/camera-ingest-oci
 CONSOLE_OCI         := $(CURDIR)/.build/cluster-console-oci
 
-.PHONY: test fmt render image-camera-ingest push-camera-ingest image-console push-console mirror
+.PHONY: test test-page dev-page fmt render image-camera-ingest push-camera-ingest image-console push-console mirror
+
+# The React page's own tests. (They also run inside `make image-console`.)
+test-page:
+	cd frontend && npm ci --no-audit --no-fund && npm test
+
+# Serve the page from the laptop with live reload, using the real console in
+# the cluster for data. CONSOLE_URL is how the laptop reaches Traefik, for
+# example:  make dev-page CONSOLE_URL=http://<gateway address>
+CONSOLE_URL ?= http://console.cluster.local
+dev-page:
+	cd frontend && npm ci --no-audit --no-fund && CONSOLE_URL=$(CONSOLE_URL) npm run dev
 
 # Rewrites the Go files into the standard layout. Only spacing changes.
 fmt:

@@ -307,8 +307,20 @@ func (s *Server) hello() map[string]any {
 
 // Handler returns the thing that answers HTTP requests: a table of
 // "method and path" to "function that handles it".
-func (s *Server) Handler() http.Handler {
+//
+// page serves the React page for every address that is not part of the API.
+// It may be nil (the tests do not need a page), in which case only the API
+// is served.
+func (s *Server) Handler(page http.Handler) http.Handler {
 	mux := http.NewServeMux()
+	if page != nil {
+		mux.Handle("/", page)
+	}
+	// An address under /api/ that matches nothing below is a mistake in the
+	// caller, so answer with a JSON error instead of the page.
+	mux.HandleFunc("/api/", func(w http.ResponseWriter, r *http.Request) {
+		fail(w, http.StatusNotFound, "no such API address: "+r.Method+" "+r.URL.Path)
+	})
 
 	// Reading: no token needed.
 	mux.HandleFunc("GET /api/state", func(w http.ResponseWriter, r *http.Request) { writeJSON(w, http.StatusOK, s.snapshot()) })
