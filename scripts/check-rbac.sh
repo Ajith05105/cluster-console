@@ -24,8 +24,17 @@ check() {
   local want="$1" verb="$2" resource="$3" namespace="${4:-}"
   local where="cluster-wide" flag=()
   if [ -n "$namespace" ]; then where="in $namespace"; flag=(-n "$namespace"); fi
+  # "deployments.apps/scale" means the scale sub-resource of Deployments.
+  # kubectl must be told that with --subresource; written with a slash it
+  # would take "scale" to be the NAME of a Deployment and answer a different
+  # question.
+  local kind="$resource"
+  if [[ "$resource" == */* ]]; then
+    kind="${resource%%/*}"
+    flag+=(--subresource="${resource#*/}")
+  fi
   local got
-  got=$($KUBECTL auth can-i "$verb" "$resource" "${flag[@]}" --as="$WHO" 2>/dev/null | head -1)
+  got=$($KUBECTL auth can-i "$verb" "$kind" "${flag[@]}" --as="$WHO" 2>/dev/null | head -1)
   local mark="ok   "
   if [ "$got" != "$want" ]; then mark="WRONG"; wrong=$((wrong + 1)); fi
   printf '%s  %-6s %-42s %-14s agreed: %-3s  cluster says: %s\n' "$mark" "$verb" "$resource" "$where" "$want" "$got"
