@@ -1,6 +1,7 @@
 {
   "default": "camera-ingest",
   "node_death_seconds": { "baseline": 300, "fast": 20 },
+  "excluded_nodes": ["mac-mini-agent"],
   "items": [
     {
       "key": "camera-ingest",

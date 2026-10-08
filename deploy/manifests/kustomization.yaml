@@ -1,11 +1,13 @@
 # Everything the single Argo CD Application applies.
 #
-# There is no `namespace:` line here on purpose: the files below belong to two
-# different namespaces (`console` and `workload`), so each file names its own.
-#
-# The console's own manifests (Deployment, Service, RBAC, route) are added to
-# this list in the later phases.
+# There is no `namespace:` line here on purpose: the files below belong to
+# several namespaces, so each object names its own.
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
+  # The ceiling on the workload namespace.
   - workload-quota.yaml
+  # What the console is allowed to do (and, by omission, what it is not).
+  - console-rbac.yaml
+  # The console itself.
+  - console.yaml

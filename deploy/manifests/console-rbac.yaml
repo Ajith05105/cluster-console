@@ -1,0 +1,124 @@
+# What the console is allowed to do in the cluster.
+#
+# The console runs as the ServiceAccount `console` in the `console` namespace.
+# Three sets of permissions are attached to it:
+#
+#   1. In `workload`: watch the workload, and create/delete the four kinds of
+#      object a workload is made of, change a Deployment's pod count, and
+#      delete pods. This is the ONLY place it can change anything.
+#   2. Cluster-wide: read the list of nodes. Nothing else, and read only.
+#   3. In `argocd`: read Argo CD's applications. Nothing else, and read only.
+#
+# Deliberately NOT granted, anywhere:
+#   - ResourceQuotas (the quota is the ceiling on the console itself)
+#   - Secrets, ConfigMaps, ServiceAccounts, Roles
+#   - editing a Deployment (only its pod count, through "deployments/scale")
+#   - editing an existing Service, autoscaler or route
+#   - any wildcard
+#
+# backend/api/rbac_manifest_test.go checks this file against those rules, so a
+# change here that loosens them fails `make test`.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: console
+  namespace: console
+---
+# 1. The workload namespace.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: console-workload
+  namespace: workload
+rules:
+  # Pods: watch them, and delete one (the "delete a pod" button).
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  # Kubernetes' own event messages (FailedScheduling and so on): read only.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # Deployments: watch, create (Deploy) and delete (Remove).
+  - apiGroups: ["apps"]
+    resources: ["deployments"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # A Deployment's pod count, and nothing else about it.
+  - apiGroups: ["apps"]
+    resources: ["deployments/scale"]
+    verbs: ["patch"]
+  # Autoscalers: watch, create and delete.
+  - apiGroups: ["autoscaling"]
+    resources: ["horizontalpodautoscalers"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  # Services: create, look up by name, delete.
+  - apiGroups: [""]
+    resources: ["services"]
+    verbs: ["get", "create", "delete"]
+  # The Traefik route (an Ingress): create, look up by name, delete.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "create", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: console-workload
+  namespace: workload
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: console-workload
+subjects:
+  - kind: ServiceAccount
+    name: console
+    namespace: console
+---
+# 2. Nodes, cluster-wide, read only.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: cluster-console-read-nodes
+rules:
+  - apiGroups: [""]
+    resources: ["nodes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: cluster-console-read-nodes
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: cluster-console-read-nodes
+subjects:
+  - kind: ServiceAccount
+    name: console
+    namespace: console
+---
+# 3. Argo CD applications, read only, so the console can warn when one is
+#    OutOfSync.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: console-read-applications
+  namespace: argocd
+rules:
+  - apiGroups: ["argoproj.io"]
+    resources: ["applications"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: console-read-applications
+  namespace: argocd
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: console-read-applications
+subjects:
+  - kind: ServiceAccount
+    name: console
+    namespace: console

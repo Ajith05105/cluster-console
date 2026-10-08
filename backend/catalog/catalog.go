@@ -32,6 +32,11 @@ type Catalog struct {
 	// that were on a node which has died. See NodeDeathSeconds below.
 	NodeDeathSeconds NodeDeathSeconds `json:"node_death_seconds"`
 
+	// ExcludedNodes are worker nodes that must never run the workload. They
+	// are left out of the test pool. Control-plane nodes are always left out
+	// and do not need listing here.
+	ExcludedNodes []string `json:"excluded_nodes"`
+
 	Items []Item `json:"items"`
 }
 
@@ -94,6 +99,10 @@ type Autoscaling struct {
 // and dashes. Kubernetes requires this of object names.
 var keyPattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9-]*[a-z0-9])?$`)
 
+// nodeNamePattern is what a node name may look like: as a key, but dots are
+// allowed too.
+var nodeNamePattern = regexp.MustCompile(`^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$`)
+
 // Load reads the built-in catalog and checks it for mistakes. A mistake in
 // catalog.json is reported here, at start-up, rather than later when someone
 // presses Deploy.
@@ -110,6 +119,12 @@ func Load() (*Catalog, error) {
 
 	if c.NodeDeathSeconds.Baseline <= 0 || c.NodeDeathSeconds.Fast <= 0 {
 		return nil, fmt.Errorf("catalog.json: node_death_seconds baseline and fast must both be above 0")
+	}
+
+	for _, node := range c.ExcludedNodes {
+		if !nodeNamePattern.MatchString(node) {
+			return nil, fmt.Errorf("catalog.json: excluded_nodes: %q is not a valid node name", node)
+		}
 	}
 
 	seen := map[string]bool{}
@@ -137,6 +152,21 @@ func (c *Catalog) Find(key string) (Item, bool) {
 		}
 	}
 	return Item{}, false
+}
+
+// InTestPool says whether workload pods are allowed on a node: it must be a
+// worker (not control-plane) and not on the excluded list. This mirrors the
+// placement rules in templates/deployment.yaml.tmpl.
+func (c *Catalog) InTestPool(nodeName string, isControlPlane bool) bool {
+	if isControlPlane {
+		return false
+	}
+	for _, excluded := range c.ExcludedNodes {
+		if excluded == nodeName {
+			return false
+		}
+	}
+	return true
 }
 
 // check reports the first thing wrong with one catalog entry, or nil if it

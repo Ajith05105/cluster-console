@@ -6,9 +6,9 @@ the cluster, put load on it, trigger and watch events such as a node joining
 or dropping out, and record what was measured, so the cluster's behaviour can
 be shown live and backed with data.
 
-**Status: Phase 1 done.** The demo workload (`camera-ingest`), the image
-catalog and the workload templates are written. The console's API, load
-generator and front end are not written yet.
+**Status: Phase 2 done.** The demo workload (`camera-ingest`), the image
+catalog, and the console's backend (API, live stream, load generator,
+warnings, CSV recording) are written. The React front end is not written yet.
 
 ## Folder map
 
@@ -21,7 +21,7 @@ generator and front end are not written yet.
 | `docs/` | `HOW-IT-WORKS.md` and the dry-run checklist |
 | `data/` | CSV output from test runs; ignored by git except `.gitkeep` |
 | `internal/scene/` | Go code that draws the fake camera pictures, shared by `camera-ingest` and the load generator |
-| `scripts/` | `mirror-images.sh` copies the catalog's public images into the Gitea registry |
+| `scripts/` | `mirror-images.sh` copies the catalog's public images into the Gitea registry; `check-rbac.sh` asks the cluster what the console is allowed to do |
 
 `make test` runs the Go checks inside a container; see the `Makefile` for the
 other shortcuts.

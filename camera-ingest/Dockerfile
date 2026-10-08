@@ -10,7 +10,7 @@ FROM --platform=$BUILDPLATFORM docker.io/library/golang:1.27.1-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
-COPY go.mod ./
+COPY go.mod go.sum ./
 COPY internal ./internal
 COPY camera-ingest ./camera-ingest
 # CGO_ENABLED=0 makes one self-contained program file with no system

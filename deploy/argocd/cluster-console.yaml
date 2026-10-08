@@ -1,7 +1,8 @@
 # The one Argo CD Application for this project.
 #
 # It applies everything under deploy/manifests/ in this repo:
-#   - the console itself, in the `console` namespace (added in later phases)
+#   - the console itself, in the `console` namespace
+#   - the console's permissions (see deploy/manifests/console-rbac.yaml)
 #   - the ResourceQuota in the `workload` namespace
 #
 # It does NOT manage the workload's Deployment, Service, autoscaler or route.
