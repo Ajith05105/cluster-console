@@ -1,0 +1,17 @@
+# TEMPLATE. One stable in-cluster address for all the workload's pods.
+# Traffic sent here is shared out among the pods that are currently ready.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{.Key}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.Key}}
+    managed-by: console
+spec:
+  selector:
+    app: {{.Key}}
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

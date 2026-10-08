@@ -1,0 +1,33 @@
+# The one Argo CD Application for this project.
+#
+# It applies everything under deploy/manifests/ in this repo:
+#   - the console itself, in the `console` namespace (added in later phases)
+#   - the ResourceQuota in the `workload` namespace
+#
+# It does NOT manage the workload's Deployment, Service, autoscaler or route.
+# Those are created by the console's Deploy button and deleted by Remove.
+#
+# This object lives in the `argocd` namespace, so the owner applies it:
+#   sudo k3s kubectl apply -f cluster-console.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cluster-console
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: http://gitea-http.gitea.svc.cluster.local:3000/apps/cluster-console.git
+    targetRevision: HEAD
+    path: deploy/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    # Used for any file that does not name its own namespace.
+    namespace: console
+  syncPolicy:
+    # Argo CD applies new commits by itself. selfHeal is off: it does not
+    # undo changes made directly on the cluster. prune is off: it does not
+    # delete things that disappear from git.
+    automated:
+      prune: false
+      selfHeal: false

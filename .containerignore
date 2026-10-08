@@ -1,0 +1,8 @@
+# Files the container builds never need. Keeps builds fast and keeps local
+# output out of images.
+.git
+.build
+data
+docs
+frontend/node_modules
+frontend/dist

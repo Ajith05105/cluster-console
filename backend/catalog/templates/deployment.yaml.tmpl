@@ -1,0 +1,131 @@
+# TEMPLATE, not a live manifest. The console fills in the double-curly-brace
+# placeholders from the catalog and the Deploy form, then creates the result
+# in the `workload` namespace. See ../render.go.
+#
+# `replicas` is deliberately NOT set. The number of pods is owned by the
+# autoscaler and by the console's scale control.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{.Key}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.Key}}
+    managed-by: console
+spec:
+  selector:
+    matchLabels:
+      app: {{.Key}}
+  template:
+    metadata:
+      labels:
+        app: {{.Key}}
+        managed-by: console
+    spec:
+      # Where pods may run: only on worker nodes in the test pool.
+      # Both rules must hold:
+      #   1. the node is not a control-plane node, and
+      #   2. the node is not mac-mini-agent.
+      # A newly joined worker passes both automatically, with no labelling.
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: node-role.kubernetes.io/control-plane
+                    operator: DoesNotExist
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - mac-mini-agent
+
+      # Spread pods evenly across workers, so losing one node loses only its
+      # share of the pods.
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: {{.Key}}
+
+      # How long Kubernetes waits before replacing pods on a node that has
+      # died. 300 seconds is the Kubernetes default (the baseline); the
+      # console's "fast" switch sets 20.
+      tolerations:
+        - key: node.kubernetes.io/not-ready
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: {{.NodeDeathSeconds}}
+        - key: node.kubernetes.io/unreachable
+          operator: Exists
+          effect: NoExecute
+          tolerationSeconds: {{.NodeDeathSeconds}}
+
+      terminationGracePeriodSeconds: 20
+
+      imagePullSecrets:
+        - name: gitea-registry-pull
+{{- if .LockedDown}}
+
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        runAsGroup: 65534
+        seccompProfile:
+          type: RuntimeDefault
+{{- end}}
+
+      containers:
+        - name: app
+          image: {{.Image}}
+          ports:
+            - name: http
+              containerPort: {{.Port}}
+          env:
+{{- range $name, $value := .Env}}
+            - name: {{$name}}
+              value: {{printf "%q" $value}}
+{{- end}}
+            # Downward API: Kubernetes fills these in with the name of the
+            # node the pod landed on, and the pod's own name.
+            - name: NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+          resources:
+            # The CPU request decides how many pods fit on a worker.
+            requests:
+              cpu: {{printf "%q" .CPURequest}}
+              memory: {{printf "%q" .MemoryRequest}}
+            limits:
+{{- if .CPULimit}}
+              cpu: {{printf "%q" .CPULimit}}
+{{- end}}
+              memory: {{printf "%q" .MemoryLimit}}
+          readinessProbe:
+            httpGet:
+              path: {{.HealthPath}}
+              port: http
+            periodSeconds: 2
+            timeoutSeconds: 1
+            failureThreshold: 2
+          livenessProbe:
+            httpGet:
+              path: {{.LivenessPath}}
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+{{- if .LockedDown}}
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+{{- end}}

@@ -16,7 +16,11 @@ with one of them, stop and ask the owner before doing anything.
 
 ## Limits when a task does involve the cluster
 
-- Only act in the namespaces `workload` and `console`.
+- Write (create, change, delete) only in the namespaces `workload` and
+  `console`.
+- One approved exception, read-only: a Role and RoleBinding in `argocd`
+  limited to get, list and watch on `applications.argoproj.io`, so the console
+  can warn when an Argo CD app is OutOfSync. Nothing else in `argocd`.
 - Never power off machines.
 - Do not change k3s, Argo CD or Traefik global settings.
 

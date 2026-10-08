@@ -1,0 +1,32 @@
+# TEMPLATE. The autoscaler: adds pods when average CPU use goes above the
+# target share of the CPU request, and removes them when it falls.
+#
+# Note: the autoscaler only asks for pods. It does not know whether the nodes
+# have room. If they do not, the extra pods sit in Pending until a node joins.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{.Key}}
+  namespace: {{.Namespace}}
+  labels:
+    app: {{.Key}}
+    managed-by: console
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{.Key}}
+  minReplicas: {{.MinReplicas}}
+  maxReplicas: {{.MaxReplicas}}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{.TargetCPUPercent}}
+  behavior:
+    # Kubernetes normally waits 5 minutes of low load before removing pods.
+    # 60 seconds keeps the demo moving.
+    scaleDown:
+      stabilizationWindowSeconds: 60

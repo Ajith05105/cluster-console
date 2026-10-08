@@ -1,0 +1,23 @@
+# A ceiling on what the `workload` namespace may ask for in total, so a typo
+# in the console (say, 5 CPUs per pod) cannot swamp the cluster.
+#
+# Sized for the largest normal case, 20 pods of camera-ingest
+# (20 x 500m CPU, 20 x 128Mi requested, 20 x 256Mi limit), plus headroom for
+# the extra pods that briefly exist during a rolling update.
+#
+# Because this quota counts CPU requests, memory requests and memory limits,
+# every pod in the namespace must declare all three or it is refused.
+#
+# The console is deliberately NOT allowed to create, edit or delete this
+# object. Only Argo CD (from this file) and the owner can change it.
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: workload-quota
+  namespace: workload
+spec:
+  hard:
+    pods: "30"
+    requests.cpu: "12"
+    requests.memory: 4Gi
+    limits.memory: 8Gi
