@@ -78,7 +78,11 @@ Each carries a reason sentence.
 Written to `DATA_DIR` (a volume in the cluster), a new pair each time the
 console starts. Timestamps are UTC, like `2026-10-08T06:30:27.001Z`.
 
-`stats-<start>.csv`, one row per second:
+`stats-<start>.csv`, one row per second **while a workload is deployed or
+load is running**. An idle console writes no stats rows, to spare the disk it
+runs on, so the file has gaps wherever nothing was deployed. The event log
+records when recording starts and stops. (The page's charts are fed from
+memory and keep updating every second regardless.)
 
 ```
 time_utc,cameras,fps,demand_fps,sent,processed,failed,failed_busy,failed_timeout,failed_other,

@@ -50,8 +50,11 @@ type Server struct {
 	engine  *warnings.Engine
 	hub     *hub
 
-	// mu guards the two fields below.
+	// mu guards the three fields below.
 	mu sync.Mutex
+	// recording is whether last second's stats row was written to disk.
+	// It is only used to notice the moment recording starts or stops.
+	recording bool
 	// warnings is the list worked out at the last tick.
 	warnings []warnings.Warning
 	// window is the last few seconds of load counts, which the
@@ -180,8 +183,33 @@ func (s *Server) tick(now time.Time) {
 			row.ReadyNodes++
 		}
 	}
-	s.stats.Write(row)
+	// Write the row to the CSV file only when there is something to measure:
+	// a workload is deployed, load is running, or frames sent a moment ago
+	// are still being answered. An idle console writes nothing to disk, so
+	// it does not wear the card it runs on or fill it with rows of zeros.
+	// The row is always kept in memory and sent to browsers, so the page's
+	// charts keep moving either way.
+	active := state.Workload != nil || s.load.Status().Running ||
+		second.Sent > 0 || second.Processed > 0 || second.Failed > 0
+	if active {
+		s.stats.Write(row)
+	} else {
+		s.stats.Remember(row)
+	}
 	s.hub.publish("stats", row)
+
+	// Say so in the event log when recording starts or stops, so that a gap
+	// in the stats CSV can be explained later.
+	s.mu.Lock()
+	changed := active != s.recording
+	s.recording = active
+	s.mu.Unlock()
+	if changed && active {
+		s.events.Add("action", "recording stats to the CSV file")
+	}
+	if changed && !active {
+		s.events.Add("action", "stopped recording stats to the CSV file (nothing deployed and no load)")
+	}
 
 	// Work out the warnings and compare with last second's list.
 	s.mu.Lock()

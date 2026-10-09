@@ -350,6 +350,88 @@ func TestTickRaisesAndClearsWarnings(t *testing.T) {
 	}
 }
 
+// Stats rows are written to disk only while a workload is deployed or load is
+// running. An idle console writes nothing, but the page still gets a row
+// every second.
+func TestStatsAreWrittenOnlyWhenActive(t *testing.T) {
+	c := newTestConsole(t, Config{Token: testToken})
+	path := filepath.Join(t.TempDir(), "stats.csv")
+	onDisk, err := record.NewStatsWriter(path)
+	if err != nil {
+		t.Fatalf("NewStatsWriter failed: %v", err)
+	}
+	t.Cleanup(onDisk.Close)
+	c.server.stats = onDisk
+
+	// rowsOnDisk counts the data rows in the file (not the header).
+	rowsOnDisk := func() int {
+		contents, _ := os.ReadFile(path)
+		return strings.Count(string(contents), "\n") - 1
+	}
+	tick := func(times int) {
+		for i := 0; i < times; i++ {
+			c.server.tick(time.Now())
+		}
+	}
+
+	// 1. Idle: nothing deployed, no load.
+	tick(5)
+	if got := rowsOnDisk(); got != 0 {
+		t.Errorf("idle: %d rows written to disk, want 0", got)
+	}
+	if got := len(c.server.stats.Recent()); got != 5 {
+		t.Errorf("idle: %d rows kept for the charts, want 5", got)
+	}
+	if c.hasEvent("action", "recording stats") {
+		t.Error("idle: the event log says recording started")
+	}
+
+	// 2. A workload is deployed: rows are written.
+	if got := c.post(t, "/api/deploy", testToken, `{"image_key":"camera-ingest"}`); got.Status != http.StatusOK {
+		t.Fatalf("deploy: status %d, error %q", got.Status, got.Error)
+	}
+	clustertest.Eventually(t, "watcher to see the workload", func() bool { return c.server.snapshot().Cluster.Workload != nil })
+	tick(3)
+	if got := rowsOnDisk(); got != 3 {
+		t.Errorf("deployed: %d rows written to disk, want 3", got)
+	}
+	if !c.hasEvent("action", "recording stats to the CSV file") {
+		t.Error("deployed: the event log does not say recording started")
+	}
+
+	// 3. Removed again: writing stops, and the event log says so once.
+	if got := c.post(t, "/api/undeploy", testToken, ""); got.Status != http.StatusOK {
+		t.Fatalf("undeploy: status %d", got.Status)
+	}
+	clustertest.Eventually(t, "watcher to see the workload go", func() bool { return c.server.snapshot().Cluster.Workload == nil })
+	tick(4)
+	if got := rowsOnDisk(); got != 3 {
+		t.Errorf("removed: %d rows on disk, want it to stay at 3", got)
+	}
+	stops := 0
+	for _, event := range c.events.Recent() {
+		if strings.Contains(event.Message, "stopped recording stats") {
+			stops++
+		}
+	}
+	if stops != 1 {
+		t.Errorf("removed: the event log says recording stopped %d times, want once", stops)
+	}
+
+	// 4. Load running with nothing deployed still counts as active: the
+	//    frames are being sent and failing, which is worth a record.
+	if got := c.post(t, "/api/load/start", testToken, `{"cameras":2,"fps":5}`); got.Status != http.StatusOK {
+		t.Fatalf("load start: status %d, error %q", got.Status, got.Error)
+	}
+	tick(2)
+	if got := rowsOnDisk(); got != 5 {
+		t.Errorf("load running: %d rows on disk, want 5", got)
+	}
+	if got := len(c.server.stats.Recent()); got != 14 {
+		t.Errorf("%d rows kept for the charts in total, want all 14", got)
+	}
+}
+
 // CSV files in the data folder can be listed and downloaded, and nothing
 // else can.
 func TestFileDownload(t *testing.T) {

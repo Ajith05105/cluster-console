@@ -8,6 +8,10 @@
 // Both are written to CSV files as they happen, with UTC timestamps, and the
 // most recent entries are also kept in memory so a browser that has just
 // connected can be shown what happened so far.
+//
+// The stats are only written to disk while there is something to measure (a
+// workload is deployed or load is running). An idle console writes nothing,
+// which spares the disk it runs on. See the tick function in api/server.go.
 package record
 
 import (
@@ -185,15 +189,22 @@ func NewStatsWriter(path string) (*StatsWriter, error) {
 	return stats, nil
 }
 
-// Write records one second.
+// Remember keeps one second in memory only. Nothing is written to disk.
+//
+// The page's charts are fed from memory, so they carry on updating every
+// second whether or not the row is also written to the CSV file.
+func (s *StatsWriter) Remember(row StatsRow) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.remember(row)
+}
+
+// Write keeps one second in memory AND adds it to the CSV file on disk.
 func (s *StatsWriter) Write(row StatsRow) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.recent = append(s.recent, row)
-	if len(s.recent) > recentStats {
-		s.recent = s.recent[len(s.recent)-recentStats:]
-	}
+	s.remember(row)
 	if s.writer == nil {
 		return
 	}
@@ -217,6 +228,15 @@ func (s *StatsWriter) Write(row StatsRow) {
 		FormatPerNode(row.PerNode),
 	})
 	s.writer.Flush()
+}
+
+// remember adds a row to the in-memory list, dropping the oldest once the
+// list is full. The caller must hold s.mu.
+func (s *StatsWriter) remember(row StatsRow) {
+	s.recent = append(s.recent, row)
+	if len(s.recent) > recentStats {
+		s.recent = s.recent[len(s.recent)-recentStats:]
+	}
 }
 
 // Recent returns a copy of the rows still held in memory, oldest first.

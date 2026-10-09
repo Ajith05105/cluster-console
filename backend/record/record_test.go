@@ -121,6 +121,46 @@ func TestStatsWriterWritesCSV(t *testing.T) {
 	stats.Close()
 }
 
+// Remember keeps a row for the charts without touching the file.
+func TestRememberDoesNotWriteToDisk(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "stats.csv")
+	stats, err := NewStatsWriter(path)
+	if err != nil {
+		t.Fatalf("NewStatsWriter failed: %v", err)
+	}
+	sizeBefore := fileSize(t, path) // just the header line
+
+	for i := 0; i < 5; i++ {
+		stats.Remember(StatsRow{Time: time.Date(2026, 10, 9, 3, 0, i, 0, time.UTC), ReadyNodes: 3})
+	}
+	if got := len(stats.Recent()); got != 5 {
+		t.Errorf("memory holds %d rows after 5 Remember calls, want 5", got)
+	}
+	if got := fileSize(t, path); got != sizeBefore {
+		t.Errorf("the file grew from %d to %d bytes; Remember must not write to disk", sizeBefore, got)
+	}
+
+	// Write does both, and the remembered rows are not written late.
+	stats.Write(StatsRow{Time: time.Date(2026, 10, 9, 3, 0, 5, 0, time.UTC), Sent: 50})
+	if got := len(stats.Recent()); got != 6 {
+		t.Errorf("memory holds %d rows, want 6", got)
+	}
+	if rows := readCSV(t, path); len(rows) != 2 || rows[1][0] != "2026-10-09T03:00:05.000Z" || rows[1][4] != "50" {
+		t.Errorf("file rows = %v; want the header and only the one written row", rows)
+	}
+	stats.Close()
+}
+
+// fileSize returns a file's size in bytes.
+func fileSize(t *testing.T, path string) int64 {
+	t.Helper()
+	info, err := os.Stat(path)
+	if err != nil {
+		t.Fatalf("cannot inspect %s: %v", path, err)
+	}
+	return info.Size()
+}
+
 // Memory keeps only the most recent entries, so a long run cannot use it up.
 func TestMemoryIsBounded(t *testing.T) {
 	log, _ := NewEventLog("")
