@@ -4,9 +4,9 @@ import { cores, howLong, plural, secondsSince } from "../format.js";
 // Nodes draws the cluster: one card per node with a square for each pod on
 // it, and a "waiting" box for pods that have no node to run on.
 //
-// Workers in the test pool get full cards, because that is where the
-// workload runs. Control-plane nodes and excluded workers never run the
-// workload, so they are listed in one compact row underneath.
+// Every worker gets a full card, because workers are where the workload
+// runs. Control-plane nodes never run the workload, so they are listed in
+// one compact row underneath.
 export default function Nodes({ cluster, lastSecond, selectedPod, onSelectPod }) {
   const now = useNow();
 
@@ -48,15 +48,12 @@ export default function Nodes({ cluster, lastSecond, selectedPod, onSelectPod })
 
       {otherNodes.length > 0 && (
         <div className="other-nodes">
-          <span className="other-nodes-label">Not in the test pool:</span>
+          <span className="other-nodes-label">Control-plane (never runs the workload):</span>
           {otherNodes.map((node) => (
             <span key={node.name} className="chip" title={`${node.role}, ${cores(node.cpu_millis)}`}>
               <span className={node.ready ? "dot dot-good" : "dot dot-bad"} aria-hidden="true" />
               {node.name}
-              <span className="chip-note">
-                {node.pool === "control-plane" ? "control-plane" : "excluded"}
-                {node.ready ? "" : ", NotReady"}
-              </span>
+              {!node.ready && <span className="chip-note">NotReady</span>}
             </span>
           ))}
         </div>

@@ -70,7 +70,7 @@ spec:
 
       containers:
         - name: console
-          image: gitea.cluster.local:3000/apps/cluster-console:0.3.0
+          image: gitea.cluster.local:3000/apps/cluster-console:0.3.1
           ports:
             - name: http
               containerPort: 8080

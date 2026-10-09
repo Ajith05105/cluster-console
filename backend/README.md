@@ -68,7 +68,7 @@ Each carries a reason sentence.
 | Rule | Raised when |
 |---|---|
 | Pending pods | a pod has been unschedulable for more than 15 s (reason includes the scheduler's, e.g. `Insufficient cpu`) |
-| Node | a node is NotReady (not raised for nodes on the excluded list) |
+| Node | any node is NotReady, worker or control-plane |
 | Replicas | ready pods have been below the wanted number for more than 10 s |
 | Frames | more than 1% of frames failed over the last 10 s (needs at least 20 frames sent) |
 | Argo CD | an application is OutOfSync |

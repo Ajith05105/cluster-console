@@ -102,9 +102,9 @@ CPU and 22Mi of memory.
 
 ## Where workload pods are allowed to run
 
-Pods use node affinity with two rules: the node must not be a control-plane
-node, and must not be `mac-mini-agent`. No node labels are needed, so a
-worker that joins later is eligible straight away.
+Pods use node affinity with one rule: the node must not be a control-plane
+node. Every worker is eligible, and none is treated specially. No node labels
+are needed, so a worker that joins later is eligible straight away.
 
 ## How quickly pods on a dead node are replaced
 

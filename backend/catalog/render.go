@@ -83,7 +83,6 @@ type templateData struct {
 	MemoryLimit   string
 
 	NodeDeathSeconds int
-	ExcludedNodes    []string
 
 	TargetCPUPercent int
 	MinReplicas      int
@@ -117,7 +116,6 @@ func (c *Catalog) Render(key string, options Options) (string, error) {
 		MemoryRequest:    item.MemoryRequest,
 		MemoryLimit:      item.MemoryLimit,
 		NodeDeathSeconds: c.NodeDeathSeconds.Baseline,
-		ExcludedNodes:    c.ExcludedNodes,
 		TargetCPUPercent: item.HPA.TargetCPUPercent,
 		MinReplicas:      item.HPA.MinReplicas,
 		MaxReplicas:      item.HPA.MaxReplicas,

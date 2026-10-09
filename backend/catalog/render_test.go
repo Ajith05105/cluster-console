@@ -110,10 +110,19 @@ func TestEveryEntryRenders(t *testing.T) {
 		wantLine(t, yaml, "image: "+item.Image)
 		wantLine(t, yaml, "- host: workload.cluster.local")
 
-		// Placement: not on control-plane nodes, not on mac-mini-agent.
+		// Placement: not on control-plane nodes, and that is the only rule.
+		// No worker is named or left out.
 		wantLine(t, yaml, "- key: node-role.kubernetes.io/control-plane")
 		wantLine(t, yaml, "operator: DoesNotExist")
-		wantLine(t, yaml, "- mac-mini-agent")
+		if strings.Count(yaml, "- key:") != 3 {
+			// One placement rule plus the two node-death tolerations.
+			t.Errorf("%s: want 3 \"- key:\" lines (1 placement rule, 2 tolerations), got %d", item.Key, strings.Count(yaml, "- key:"))
+		}
+		for _, unwanted := range []string{"mac-mini-agent", "operator: NotIn", "- key: kubernetes.io/hostname"} {
+			if strings.Contains(yaml, unwanted) {
+				t.Errorf("%s: rendered YAML contains %q; no node may be singled out", item.Key, unwanted)
+			}
+		}
 
 		// The pod count must be left to the autoscaler.
 		for _, line := range strings.Split(yaml, "\n") {

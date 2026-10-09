@@ -232,13 +232,7 @@ func warningInput(now time.Time, state cluster.State, window []warnings.LoadSeco
 		if !node.Known {
 			continue // we know nothing about its health
 		}
-		entry := warnings.Node{
-			Name:  node.Name,
-			Ready: node.Ready,
-			// Excluded nodes are not part of the test, so a problem with
-			// one is not something to raise the alarm about.
-			Watched: node.Pool != "excluded",
-		}
+		entry := warnings.Node{Name: node.Name, Ready: node.Ready}
 		if node.NotReadySince != nil {
 			entry.NotReadySince = *node.NotReadySince
 		}

@@ -50,8 +50,8 @@ type Node struct {
 	NotReadySince *time.Time `json:"not_ready_since"`
 	// Role is "control-plane" or "worker".
 	Role string `json:"role"`
-	// Pool is "test" for workers the workload may use, "excluded" for
-	// workers it may not, and "control-plane" for control-plane nodes.
+	// Pool is "test" for workers, which is where the workload runs, and
+	// "control-plane" for control-plane nodes, where it never does.
 	Pool string `json:"pool"`
 	// CPUMillis is the node's allocatable CPU in thousandths of a core.
 	CPUMillis int64 `json:"cpu_millis"`
@@ -209,15 +209,14 @@ func (c *Cluster) describeNode(node *corev1.Node, pods []Pod) Node {
 		Name:      node.Name,
 		Known:     true,
 		Role:      "worker",
-		Pool:      "excluded",
+		Pool:      "test",
 		CPUMillis: node.Status.Allocatable.Cpu().MilliValue(),
 		Pods:      pods,
 	}
-	switch {
-	case isControlPlane:
+	// Every worker is in the test pool. This matches the one placement rule
+	// in the catalog's Deployment template: anywhere but control-plane.
+	if isControlPlane {
 		out.Role, out.Pool = "control-plane", "control-plane"
-	case c.catalog.InTestPool(node.Name, false):
-		out.Pool = "test"
 	}
 	if out.Pods == nil {
 		out.Pods = []Pod{}
@@ -416,10 +415,10 @@ func sortPods(pods []Pod) {
 	sort.Slice(pods, func(i, j int) bool { return pods[i].Name < pods[j].Name })
 }
 
-// sortNodes orders nodes for display: the test pool first, then excluded
-// workers, then control-plane nodes; by name within each group.
+// sortNodes orders nodes for display: workers (the test pool) first, then
+// control-plane nodes; by name within each group.
 func sortNodes(nodes []Node) {
-	rank := map[string]int{"test": 0, "unknown": 1, "excluded": 2, "control-plane": 3}
+	rank := map[string]int{"test": 0, "unknown": 1, "control-plane": 2}
 	sort.Slice(nodes, func(i, j int) bool {
 		if rank[nodes[i].Pool] != rank[nodes[j].Pool] {
 			return rank[nodes[i].Pool] < rank[nodes[j].Pool]

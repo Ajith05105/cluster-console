@@ -331,15 +331,15 @@ func TestSnapshot(t *testing.T) {
 	})
 	state := cl.Snapshot()
 
-	// Order: test pool first (agent-7 before agent-10), then excluded, then
-	// control-plane.
+	// Order: workers first, by name (agent-7 before agent-10), then
+	// control-plane. Every worker is in the test pool; none is special.
 	var names, pools []string
 	for _, n := range state.Nodes {
 		names = append(names, n.Name)
 		pools = append(pools, n.Pool)
 	}
 	wantNames := []string{"agent-7", "agent-10", "mac-mini-agent", "server-1"}
-	wantPools := []string{"test", "test", "excluded", "control-plane"}
+	wantPools := []string{"test", "test", "test", "control-plane"}
 	for i := range wantNames {
 		if names[i] != wantNames[i] || pools[i] != wantPools[i] {
 			t.Fatalf("nodes = %v with pools %v; want %v with pools %v", names, pools, wantNames, wantPools)

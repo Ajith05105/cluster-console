@@ -22,7 +22,7 @@ REGISTRY ?= gitea.cluster.local
 CAMERA_INGEST_VERSION ?= 0.1.0
 
 # Must match the image tag in deploy/manifests/console.yaml.
-CONSOLE_VERSION ?= 0.3.0
+CONSOLE_VERSION ?= 0.3.1
 
 CAMERA_INGEST_LOCAL := localhost/camera-ingest:$(CAMERA_INGEST_VERSION)
 CONSOLE_LOCAL       := localhost/cluster-console:$(CONSOLE_VERSION)

@@ -29,7 +29,7 @@ func find(list []Warning, kind string) *Warning {
 func TestQuietWhenAllIsWell(t *testing.T) {
 	got := NewEngine().Evaluate(Input{
 		Now:      at(100),
-		Nodes:    []Node{{Name: "agent-7", Ready: true, Watched: true}},
+		Nodes:    []Node{{Name: "agent-7", Ready: true}},
 		Workload: &Workload{Name: "camera-ingest", Desired: 3, Ready: 3},
 		Recent:   []LoadSecond{{Sent: 100}, {Sent: 100}},
 		ArgoApps: []ArgoApp{{Name: "cluster-console", Sync: "Synced"}},
@@ -80,19 +80,33 @@ func TestPendingPodsGroupedByReason(t *testing.T) {
 	}
 }
 
-// Rule 2: a NotReady node is reported at once, unless it is one we were told
-// not to watch.
+// Rule 2: a NotReady node is reported at once. Every node is treated the
+// same: there is no list of nodes to stay quiet about.
 func TestNodeNotReady(t *testing.T) {
 	got := NewEngine().Evaluate(Input{Now: at(50), Nodes: []Node{
-		{Name: "agent-7", Ready: false, Watched: true, NotReadySince: at(45)},
-		{Name: "agent-10", Ready: true, Watched: true},
-		{Name: "mac-mini-agent", Ready: false, Watched: false, NotReadySince: at(0)},
+		{Name: "agent-7", Ready: false, NotReadySince: at(45)},
+		{Name: "agent-10", Ready: true},
+		{Name: "mac-mini-agent", Ready: false, NotReadySince: at(0)},
+		{Name: "server-2", Ready: false, NotReadySince: at(20)},
 	}})
-	if len(got) != 1 || got[0].Kind != "node" {
-		t.Fatalf("want exactly one node warning, got %+v", got)
+	if len(got) != 3 {
+		t.Fatalf("want one warning for each of the three NotReady nodes, got %+v", got)
 	}
-	if !strings.Contains(got[0].Reason, "agent-7") || !strings.Contains(got[0].Reason, "5 s") {
-		t.Errorf("reason %q should name agent-7 and say 5 s", got[0].Reason)
+	reasons := map[string]string{}
+	for _, warning := range got {
+		if warning.Kind != "node" {
+			t.Errorf("unexpected warning kind %q", warning.Kind)
+		}
+		reasons[warning.ID] = warning.Reason
+	}
+	if !strings.Contains(reasons["node:agent-7"], "agent-7") || !strings.Contains(reasons["node:agent-7"], "5 s") {
+		t.Errorf("agent-7 reason %q should name the node and say 5 s", reasons["node:agent-7"])
+	}
+	if !strings.Contains(reasons["node:mac-mini-agent"], "mac-mini-agent") || !strings.Contains(reasons["node:mac-mini-agent"], "50 s") {
+		t.Errorf("mac-mini-agent reason %q should name the node and say 50 s", reasons["node:mac-mini-agent"])
+	}
+	if _, warned := reasons["node:server-2"]; !warned {
+		t.Error("no warning for the NotReady control-plane node")
 	}
 }
 

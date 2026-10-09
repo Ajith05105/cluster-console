@@ -22,12 +22,9 @@ spec:
         app: {{.Key}}
         managed-by: console
     spec:
-      # Where pods may run: only on worker nodes in the test pool.
-      # Both rules must hold:
-      #   1. the node is not a control-plane node, and
-      #   2. the node is not on the excluded list (excluded_nodes in
-      #      catalog.json).
-      # A newly joined worker passes both automatically, with no labelling.
+      # Where pods may run: on any worker node, and never on a control-plane
+      # node. That is the only rule; no worker is treated specially. A newly
+      # joined worker is eligible straight away, with no labelling.
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -35,14 +32,6 @@ spec:
               - matchExpressions:
                   - key: node-role.kubernetes.io/control-plane
                     operator: DoesNotExist
-{{- if .ExcludedNodes}}
-                  - key: kubernetes.io/hostname
-                    operator: NotIn
-                    values:
-{{- range .ExcludedNodes}}
-                      - {{.}}
-{{- end}}
-{{- end}}
 
       # Spread pods evenly across workers, so losing one node loses only its
       # share of the pods.

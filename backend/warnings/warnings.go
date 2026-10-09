@@ -74,9 +74,6 @@ type PendingPod struct {
 type Node struct {
 	Name  string
 	Ready bool
-	// Watched is false for nodes we deliberately do not warn about (the
-	// ones on the excluded list, which are not part of the test).
-	Watched bool
 	// NotReadySince is when it stopped being ready.
 	NotReadySince time.Time
 }
@@ -166,9 +163,10 @@ func (e *Engine) Evaluate(in Input) []Warning {
 		})
 	}
 
-	// Rule 2: a node is NotReady.
+	// Rule 2: a node is NotReady. This applies to every node alike, workers
+	// and control-plane; none is left out.
 	for _, node := range in.Nodes {
-		if node.Ready || !node.Watched {
+		if node.Ready {
 			continue
 		}
 		started := node.NotReadySince
