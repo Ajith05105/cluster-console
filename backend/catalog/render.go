@@ -38,8 +38,9 @@ const (
 	ManagedByValue = "console"
 
 	// MaxReplicasCeiling is the largest autoscaler maximum we accept. The
-	// ResourceQuota in deploy/manifests/workload-quota.yaml allows 30 pods,
-	// so asking for more could never work.
+	// ResourceQuota in deploy/manifests/workload-quota.yaml allows 60 pods:
+	// twice this, so that every pod can overlap with its replacement when a
+	// node dies.
 	MaxReplicasCeiling = 30
 )
 

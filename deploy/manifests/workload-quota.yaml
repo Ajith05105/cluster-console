@@ -1,9 +1,19 @@
 # A ceiling on what the `workload` namespace may ask for in total, so a typo
 # in the console (say, 5 CPUs per pod) cannot swamp the cluster.
 #
-# Sized for the largest normal case, 20 pods of camera-ingest
-# (20 x 500m CPU, 20 x 128Mi requested, 20 x 256Mi limit), plus headroom for
-# the extra pods that briefly exist during a rolling update.
+# Sized so that a whole node's pods can overlap with their replacements.
+# When a node dies, its pods go on counting against this quota for the few
+# seconds they are given to shut down, and the replacements are created in
+# that same moment. So the quota must hold both sets at once, or the
+# replacements are refused.
+#
+# That happened on 2026-10-09 with the earlier limits (30 pods, 12 CPUs):
+# 12 pods on a dead node plus 12 others reached exactly 12 CPUs at 500m each,
+# 7 replacements were refused, and Kubernetes did not try again for minutes.
+#
+# The CPU figure also leaves room for larger pods (up to 800m each has been
+# used). Pods still cannot be scheduled beyond what the nodes really have, so
+# this remains a guard against typos, not the thing that limits capacity.
 #
 # Because this quota counts CPU requests, memory requests and memory limits,
 # every pod in the namespace must declare all three or it is refused.
@@ -17,7 +27,7 @@ metadata:
   namespace: workload
 spec:
   hard:
-    pods: "30"
-    requests.cpu: "12"
-    requests.memory: 4Gi
-    limits.memory: 8Gi
+    pods: "60"
+    requests.cpu: "32"
+    requests.memory: 8Gi
+    limits.memory: 16Gi
